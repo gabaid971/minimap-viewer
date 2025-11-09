@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoL Minimap Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a1428 0%, #1e3a5f 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            background: linear-gradient(90deg, #f0e68c, #ffd700);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #a0c0e0;
+            font-size: 1.1em;
+        }
+
+        .controls {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .control-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+
+        .control-row:last-child {
+            margin-bottom: 0;
+        }
+
+        label {
+            font-weight: 600;
+            min-width: 100px;
+        }
+
+        select, button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        select {
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            flex: 1;
+        }
+
+        button {
+            background: linear-gradient(135deg, #4a90e2, #357abd);
+            color: white;
+            font-weight: 600;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(74, 144, 226, 0.4);
+        }
+
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .timeline {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .timeline-slider {
+            flex: 1;
+            height: 8px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            outline: none;
+            cursor: pointer;
+        }
+
+        .timeline-slider::-webkit-slider-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #ffd700;
+            cursor: pointer;
+        }
+
+        .time-display {
+            font-size: 1.2em;
+            font-weight: 600;
+            min-width: 80px;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 5px 15px;
+            border-radius: 8px;
+        }
+
+        .minimap-container {
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 15px;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 600px;
+        }
+
+        canvas {
+            border: 3px solid rgba(255, 215, 0, 0.3);
+            border-radius: 10px;
+            background: #0a1f0a;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            image-rendering: crisp-edges;
+        }
+
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+        }
+
+        .blue { background: #4a90e2; }
+        .red { background: #e74c3c; }
+        .fog { background: #555; opacity: 0.5; }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: 700;
+            color: #ffd700;
+        }
+
+        .stat-label {
+            color: #a0c0e0;
+            margin-top: 5px;
+        }
+
+        .ward-details {
+            margin-top: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .ward-section {
+            margin-bottom: 20px;
+        }
+
+        .ward-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .ward-section h3 {
+            color: #ffd700;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+
+        .ward-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 10px;
+        }
+
+        .ward-item {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 8px;
+            border-left: 4px solid;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .ward-item:hover {
+            background: rgba(0, 0, 0, 0.5);
+            transform: translateX(5px);
+        }
+
+        .ward-item.blue {
+            border-color: #4a90e2;
+        }
+
+        .ward-item.red {
+            border-color: #e74c3c;
+        }
+
+        .ward-item.new {
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+            background: rgba(255, 215, 0, 0.1);
+        }
+
+        .ward-item.selected {
+            background: rgba(255, 215, 0, 0.3);
+            border-color: #ffd700;
+        }
+
+        .ward-item-header {
+            font-weight: 600;
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .ward-type {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .ward-type.yellow { background: #ffd700; color: #000; }
+        .ward-type.control { background: #ff1493; color: #fff; }
+        .ward-type.sight { background: #00ff00; color: #000; }
+
+        .ward-time {
+            font-size: 0.85em;
+            color: #a0c0e0;
+        }
+
+        .no-wards {
+            color: #888;
+            font-style: italic;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚔️ League of Legends - Minimap Viewer</h1>
+            <p class="subtitle">Visualisation des positions des joueurs frame par frame</p>
+        </header>
+
+        <div class="controls">
+            <div class="control-row">
+                <label for="match-select">🎮 Match:</label>
+                <select id="match-select">
+                    <option value="">Chargement des matchs...</option>
+                </select>
+                <button id="load-match-btn" disabled>Charger Match</button>
+            </div>
+
+            <div class="control-row timeline">
+                <button id="prev-frame-btn" disabled>◀ Précédent</button>
+                <input type="range" id="timeline-slider" class="timeline-slider" min="0" max="0" value="0" disabled>
+                <span id="time-display" class="time-display">00:00</span>
+                <button id="next-frame-btn" disabled>Suivant ▶</button>
+            </div>
+
+            <div class="control-row">
+                <label for="show-map-bg">🗺️ Image de fond:</label>
+                <input type="checkbox" id="show-map-bg" checked>
+                <span style="margin-left: 10px; color: #a0c0e0;">Afficher la minimap LoL en arrière-plan</span>
+            </div>
+        </div>
+
+        <div class="minimap-container">
+            <canvas id="minimap" width="600" height="600"></canvas>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color blue"></div>
+                <span>Équipe Bleue (100)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color red"></div>
+                <span>Équipe Rouge (200)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color fog"></div>
+                <span>Caché dans le fog</span>
+            </div>
+        </div>
+
+        <div class="stats" id="stats-container">
+            <!-- Stats dynamiques -->
+        </div>
+
+        <div class="ward-details" id="ward-details">
+            <!-- Détails des wards -->
+        </div>
+    </div>
+
+    <script>
+        // État global
+        let currentMatch = null;
+        let frames = [];
+        let currentFrameIndex = 0;
+        let minimapImage = null;
+        let showMapBackground = true;
+        let selectedWard = null;  // Ward sélectionnée pour affichage sur minimap
+
+        // Éléments DOM
+        const matchSelect = document.getElementById('match-select');
+        const loadMatchBtn = document.getElementById('load-match-btn');
+        const timelineSlider = document.getElementById('timeline-slider');
+        const timeDisplay = document.getElementById('time-display');
+        const prevBtn = document.getElementById('prev-frame-btn');
+        const nextBtn = document.getElementById('next-frame-btn');
+        const canvas = document.getElementById('minimap');
+        const ctx = canvas.getContext('2d');
+        const statsContainer = document.getElementById('stats-container');
+        const wardDetails = document.getElementById('ward-details');
+        const showMapBg = document.getElementById('show-map-bg');
+
+        // Constantes de la map LoL
+        const MAP_SIZE = 14820;
+        const CANVAS_SIZE = 600;
+        const SCALE = CANVAS_SIZE / MAP_SIZE;
+        
+        // Proportions de l'image minimap - l'image a des bordures décoratives
+        // La vraie zone de jeu représente environ 85% de l'image (bordures exclues)
+        const MAP_PADDING_PERCENT = 0.075; // 7.5% de padding de chaque côté
+        const MAP_USABLE_AREA = 1 - (MAP_PADDING_PERCENT * 2); // 85% de la zone
+
+        // Charger l'image de la minimap
+        function loadMinimapImage() {
+            minimapImage = new Image();
+            // Utiliser l'image statique locale
+            minimapImage.src = '/static/img/minimap.png';
+            
+            minimapImage.onload = () => {
+                console.log('✅ Minimap image chargée');
+                if (frames.length > 0) {
+                    displayFrame(currentFrameIndex);
+                }
+            };
+            
+            minimapImage.onerror = () => {
+                console.warn('⚠️ Impossible de charger l\'image de la minimap, utilisation du fond par défaut');
+            };
+        }
+
+        // Charger la liste des matchs
+        async function loadMatches() {
+            try {
+                const response = await fetch('/api/matches');
+                const matches = await response.json();
+
+                matchSelect.innerHTML = '<option value="">-- Sélectionner un match --</option>';
+                
+                matches.forEach(match => {
+                    const option = document.createElement('option');
+                    option.value = match.match_id;
+                    option.textContent = `${match.match_id} (${match.duration_min} min, ${match.frame_count} frames)`;
+                    matchSelect.appendChild(option);
+                });
+
+                loadMatchBtn.disabled = false;
+            } catch (error) {
+                console.error('Erreur chargement matchs:', error);
+                matchSelect.innerHTML = '<option value="">Erreur de chargement</option>';
+            }
+        }
+
+        // Charger un match
+        async function loadMatch(matchId) {
+            try {
+                const response = await fetch(`/api/match/${matchId}/frames`);
+                const data = await response.json();
+
+                currentMatch = data.match_id;
+                frames = data.frames;
+                currentFrameIndex = 0;
+
+                // Configurer le slider
+                timelineSlider.max = frames.length - 1;
+                timelineSlider.value = 0;
+                timelineSlider.disabled = false;
+
+                // Activer les boutons
+                prevBtn.disabled = false;
+                nextBtn.disabled = false;
+
+                // Afficher la première frame
+                displayFrame(0);
+
+            } catch (error) {
+                console.error('Erreur chargement match:', error);
+                alert('Erreur lors du chargement du match');
+            }
+        }
+
+        // Afficher une frame
+        function displayFrame(index) {
+            if (index < 0 || index >= frames.length) return;
+
+            currentFrameIndex = index;
+            const frame = frames[index];
+
+            // Mettre à jour le temps
+            const minutes = Math.floor(frame.time_min);
+            const seconds = frame.time_sec;
+            timeDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+            // Mettre à jour le slider
+            timelineSlider.value = index;
+
+            // Dessiner la minimap
+            drawMinimap(frame);
+
+            // Mettre à jour les stats
+            updateStats(frame);
+        }
+
+        // Dessiner la minimap
+        function drawMinimap(frame) {
+            // IMPORTANT: Effacer complètement le canvas avant de redessiner
+            ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+            ctx.globalAlpha = 1.0;
+            
+            // Fond - image ou couleur
+            if (showMapBackground && minimapImage && minimapImage.complete) {
+                // Dessiner l'image de la minimap
+                // L'image a des bordures décoratives, on doit calculer la zone utile
+                const padding = CANVAS_SIZE * MAP_PADDING_PERCENT;
+                const usableSize = CANVAS_SIZE * MAP_USABLE_AREA;
+                
+                // Dessiner l'image complète en arrière-plan avec opacité
+                ctx.globalAlpha = 0.7;
+                ctx.drawImage(minimapImage, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
+                ctx.globalAlpha = 1.0;
+            } else {
+                // Fond vert foncé par défaut
+                ctx.fillStyle = '#0a1f0a';
+                ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+            }
+
+            // Grille (seulement si pas d'image de fond)
+            if (!showMapBackground || !minimapImage || !minimapImage.complete) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.lineWidth = 1;
+                for (let i = 0; i <= 10; i++) {
+                    const pos = (CANVAS_SIZE / 10) * i;
+                    ctx.beginPath();
+                    ctx.moveTo(pos, 0);
+                    ctx.lineTo(pos, CANVAS_SIZE);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(0, pos);
+                    ctx.lineTo(CANVAS_SIZE, pos);
+                    ctx.stroke();
+                }
+
+                // Diagonale (pour repère base bleue/rouge)
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(0, CANVAS_SIZE);
+                ctx.lineTo(CANVAS_SIZE, 0);
+                ctx.stroke();
+            }
+
+            // Joueurs
+            frame.players.forEach(player => {
+                // Calculer position avec padding pour correspondre à la zone utile de l'image
+                const padding = CANVAS_SIZE * MAP_PADDING_PERCENT;
+                const usableSize = CANVAS_SIZE * MAP_USABLE_AREA;
+                
+                // Position de base (0-MAP_SIZE) converti en pixels canvas
+                const baseX = (player.position.x / MAP_SIZE) * usableSize;
+                const baseY = (player.position.y / MAP_SIZE) * usableSize;
+                
+                // Ajouter le padding et inverser Y
+                const x = padding + baseX;
+                const y = CANVAS_SIZE - padding - baseY;
+
+                // Couleur selon l'équipe
+                let color = player.team === 100 ? '#4a90e2' : '#e74c3c';
+                let opacity = player.visible_to_enemy ? 1.0 : 0.3;
+
+                // Cercle du joueur
+                ctx.globalAlpha = opacity;
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Bordure blanche épaisse pour visibilité
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Ombre portée pour meilleure visibilité sur l'image de fond
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                ctx.shadowBlur = 4;
+                ctx.shadowOffsetX = 2;
+                ctx.shadowOffsetY = 2;
+
+                // Nom du champion
+                ctx.globalAlpha = 1.0;
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 11px Arial';
+                ctx.textAlign = 'center';
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 3;
+                ctx.strokeText(player.champion, x, y - 12);
+                ctx.fillText(player.champion, x, y - 12);
+
+                // Level
+                ctx.font = 'bold 9px Arial';
+                ctx.fillStyle = '#ffd700';
+                ctx.strokeText(`Lv${player.level}`, x, y + 18);
+                ctx.fillText(`Lv${player.level}`, x, y + 18);
+
+                // Réinitialiser l'ombre
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 0;
+            });
+
+            // Dessiner la ward sélectionnée si elle existe
+            if (selectedWard) {
+                const padding = CANVAS_SIZE * MAP_PADDING_PERCENT;
+                const usableSize = CANVAS_SIZE * MAP_USABLE_AREA;
+                
+                const baseX = (selectedWard.position.x / MAP_SIZE) * usableSize;
+                const baseY = (selectedWard.position.y / MAP_SIZE) * usableSize;
+                
+                const x = padding + baseX;
+                const y = CANVAS_SIZE - padding - baseY;
+
+                // Cercle de vision de la ward (900 unités)
+                ctx.globalAlpha = 0.2;
+                ctx.fillStyle = selectedWard.team === 100 ? '#4a90e2' : '#e74c3c';
+                const visionRadius = (900 / MAP_SIZE) * usableSize;
+                ctx.beginPath();
+                ctx.arc(x, y, visionRadius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Icône de la ward
+                ctx.globalAlpha = 1.0;
+                ctx.fillStyle = selectedWard.team === 100 ? '#4a90e2' : '#e74c3c';
+                ctx.strokeStyle = '#ffd700';
+                ctx.lineWidth = 3;
+                
+                // Triangle pour ward
+                ctx.beginPath();
+                ctx.moveTo(x, y - 10);
+                ctx.lineTo(x - 8, y + 8);
+                ctx.lineTo(x + 8, y + 8);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Label
+                ctx.font = 'bold 11px Arial';
+                ctx.fillStyle = '#ffd700';
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 3;
+                ctx.textAlign = 'center';
+                ctx.strokeText(selectedWard.champion, x, y + 25);
+                ctx.fillText(selectedWard.champion, x, y + 25);
+            }
+
+            // S'assurer que tout est dessiné
+            ctx.globalAlpha = 1.0;
+        }
+
+        // Mettre à jour les statistiques
+        function updateStats(frame) {
+            const blueTeam = frame.players.filter(p => p.team === 100);
+            const redTeam = frame.players.filter(p => p.team === 200);
+            const visibleEnemies = redTeam.filter(p => p.visible_to_enemy).length;
+            const hiddenEnemies = redTeam.filter(p => !p.visible_to_enemy).length;
+            
+            const wards = frame.wards || {};
+            const blueWards = wards.blue_ward_count || 0;
+            const redWards = wards.red_ward_count || 0;
+
+            statsContainer.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value">${blueTeam.length}</div>
+                    <div class="stat-label">Équipe Bleue</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${redTeam.length}</div>
+                    <div class="stat-label">Équipe Rouge</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${visibleEnemies}</div>
+                    <div class="stat-label">Ennemis Visibles</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${hiddenEnemies}</div>
+                    <div class="stat-label">Dans le Fog</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${blueWards}</div>
+                    <div class="stat-label">Wards Bleues Actives</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${redWards}</div>
+                    <div class="stat-label">Wards Rouges Actives</div>
+                </div>
+            `;
+
+            // Afficher les détails des wards
+            updateWardDetails(frame);
+        }
+
+        // Mettre à jour les détails des wards
+        function updateWardDetails(frame) {
+            const wards = frame.wards || {};
+            const activeWards = wards.active_wards || [];
+            
+            if (activeWards.length === 0) {
+                wardDetails.innerHTML = `
+                    <h3>🔍 Wards Actives</h3>
+                    <div class="no-wards">Aucune ward active</div>
+                `;
+                selectedWard = null;
+                return;
+            }
+
+            // Grouper par équipe
+            const blueWards = activeWards.filter(w => w.team === 100);
+            const redWards = activeWards.filter(w => w.team === 200);
+
+            let html = '<h3>🔍 Wards Actives (cliquez pour afficher sur la minimap)</h3>';
+
+            // Fonction pour formater le type de ward
+            function formatWardType(type) {
+                const types = {
+                    'YELLOW_TRINKET': { text: 'Trinket Jaune', class: 'yellow' },
+                    'CONTROL_WARD': { text: 'Ward de Contrôle', class: 'control' },
+                    'SIGHT_WARD': { text: 'Ward de Vision', class: 'sight' }
+                };
+                return types[type] || { text: type, class: 'yellow' };
+            }
+
+            // Fonction pour formater le temps
+            function formatTime(timestamp) {
+                const min = Math.floor(timestamp / 60000);
+                const sec = Math.floor((timestamp % 60000) / 1000);
+                return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+            }
+
+            // Fonction pour calculer le temps restant
+            function formatTimeRemaining(expiresAt, currentTime) {
+                if (!expiresAt) return 'Permanent';
+                const remaining = Math.max(0, Math.floor((expiresAt - currentTime) / 1000));
+                const min = Math.floor(remaining / 60);
+                const sec = remaining % 60;
+                return `${min}m${sec}s`;
+            }
+
+            if (blueWards.length > 0) {
+                html += '<div class="ward-section">';
+                html += '<h3 style="color: #4a90e2;">🔵 Équipe Bleue</h3>';
+                html += '<div class="ward-list">';
+                
+                blueWards.forEach((ward, index) => {
+                    const wardType = formatWardType(ward.ward_type);
+                    const wardId = `blue-${index}`;
+                    const isSelected = selectedWard && selectedWard.position.x === ward.position.x && selectedWard.position.y === ward.position.y;
+                    const newClass = ward.is_new ? ' new' : '';
+                    const selectedClass = isSelected ? ' selected' : '';
+                    
+                    html += `
+                        <div class="ward-item blue${newClass}${selectedClass}" data-ward='${JSON.stringify(ward)}' onclick="selectWard(this)">
+                            <div class="ward-item-header">
+                                <span>${ward.champion}</span>
+                                <span class="ward-type ${wardType.class}">${wardType.text}</span>
+                            </div>
+                            <div class="ward-time">⏰ Placée à ${formatTime(ward.placed_at)}</div>
+                            <div class="ward-time">⏳ Expire: ${formatTimeRemaining(ward.expires_at, frame.timestamp)}</div>
+                            <div class="ward-time">📍 Position: (${Math.round(ward.position.x)}, ${Math.round(ward.position.y)})</div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div></div>';
+            }
+
+            if (redWards.length > 0) {
+                html += '<div class="ward-section">';
+                html += '<h3 style="color: #e74c3c;">🔴 Équipe Rouge</h3>';
+                html += '<div class="ward-list">';
+                
+                redWards.forEach((ward, index) => {
+                    const wardType = formatWardType(ward.ward_type);
+                    const wardId = `red-${index}`;
+                    const isSelected = selectedWard && selectedWard.position.x === ward.position.x && selectedWard.position.y === ward.position.y;
+                    const newClass = ward.is_new ? ' new' : '';
+                    const selectedClass = isSelected ? ' selected' : '';
+                    
+                    html += `
+                        <div class="ward-item red${newClass}${selectedClass}" data-ward='${JSON.stringify(ward)}' onclick="selectWard(this)">
+                            <div class="ward-item-header">
+                                <span>${ward.champion}</span>
+                                <span class="ward-type ${wardType.class}">${wardType.text}</span>
+                            </div>
+                            <div class="ward-time">⏰ Placée à ${formatTime(ward.placed_at)}</div>
+                            <div class="ward-time">⏳ Expire: ${formatTimeRemaining(ward.expires_at, frame.timestamp)}</div>
+                            <div class="ward-time">📍 Position: (${Math.round(ward.position.x)}, ${Math.round(ward.position.y)})</div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div></div>';
+            }
+
+            wardDetails.innerHTML = html;
+        }
+
+        // Sélectionner une ward pour l'afficher sur la minimap
+        function selectWard(element) {
+            const wardData = JSON.parse(element.getAttribute('data-ward'));
+            
+            // Toggle: si on clique sur la même ward, on la désélectionne
+            if (selectedWard && 
+                selectedWard.position.x === wardData.position.x && 
+                selectedWard.position.y === wardData.position.y) {
+                selectedWard = null;
+            } else {
+                selectedWard = wardData;
+            }
+            
+            // Redessiner la minimap avec la ward sélectionnée
+            if (frames.length > 0) {
+                displayFrame(currentFrameIndex);
+            }
+        }
+
+        // Event listeners
+        loadMatchBtn.addEventListener('click', () => {
+            const matchId = matchSelect.value;
+            if (matchId) {
+                loadMatch(matchId);
+            }
+        });
+
+        prevBtn.addEventListener('click', () => {
+            displayFrame(currentFrameIndex - 1);
+        });
+
+        nextBtn.addEventListener('click', () => {
+            displayFrame(currentFrameIndex + 1);
+        });
+
+        timelineSlider.addEventListener('input', (e) => {
+            displayFrame(parseInt(e.target.value));
+        });
+
+        showMapBg.addEventListener('change', (e) => {
+            showMapBackground = e.target.checked;
+            if (frames.length > 0) {
+                displayFrame(currentFrameIndex);
+            }
+        });
+
+        // Support clavier
+        document.addEventListener('keydown', (e) => {
+            if (frames.length === 0) return;
+
+            if (e.key === 'ArrowLeft') {
+                displayFrame(currentFrameIndex - 1);
+            } else if (e.key === 'ArrowRight') {
+                displayFrame(currentFrameIndex + 1);
+            }
+        });
+
+        // Charger au démarrage
+        loadMinimapImage();
+        loadMatches();
+    </script>
+</body>
+</html>
