@@ -297,6 +297,58 @@
             text-align: center;
             padding: 20px;
         }
+
+        /* POV Toggle Button */
+        .pov-toggle-container {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 10;
+        }
+
+        .pov-toggle {
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            gap: 5px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        .pov-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: rgba(255, 255, 255, 0.1);
+            color: #aaa;
+        }
+
+        .pov-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
+        .pov-btn.active {
+            color: #fff;
+            box-shadow: 0 2px 10px rgba(255, 255, 255, 0.3);
+        }
+
+        .pov-btn.blue.active {
+            background: linear-gradient(135deg, #4a90e2, #357abd);
+        }
+
+        .pov-btn.red.active {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+        }
+
+        .pov-btn.all.active {
+            background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+        }
     </style>
 </head>
 <body>
@@ -329,7 +381,14 @@
             </div>
         </div>
 
-        <div class="minimap-container">
+        <div class="minimap-container" style="position: relative;">
+            <div class="pov-toggle-container">
+                <div class="pov-toggle">
+                    <button class="pov-btn all active" data-team="all">👁️ ALL</button>
+                    <button class="pov-btn blue" data-team="100">🔵 BLUE</button>
+                    <button class="pov-btn red" data-team="200">🔴 RED</button>
+                </div>
+            </div>
             <canvas id="minimap" width="600" height="600"></canvas>
         </div>
 
@@ -362,6 +421,7 @@
         let currentMatch = null;
         let frames = [];
         let currentFrameIndex = 0;
+        let currentPOV = 'all';  // État POV actuel
         let minimapImage = null;
         let showMapBackground = true;
         let selectedWard = null;  // Ward sélectionnée pour affichage sur minimap
@@ -386,8 +446,8 @@
         
         // Proportions de l'image minimap - l'image a des bordures décoratives
         // La vraie zone de jeu représente environ 85% de l'image (bordures exclues)
-        const MAP_PADDING_PERCENT = 0.075; // 7.5% de padding de chaque côté
-        const MAP_USABLE_AREA = 1 - (MAP_PADDING_PERCENT * 2); // 85% de la zone
+        const MAP_PADDING_PERCENT = 0.075; // 7.5% padding pour alignement avec PNG
+        const MAP_USABLE_AREA = 0.85; // 85% zone utilisable
 
         // Charger l'image de la minimap
         function loadMinimapImage() {
@@ -432,7 +492,7 @@
         // Charger un match
         async function loadMatch(matchId) {
             try {
-                const response = await fetch(`/api/match/${matchId}/frames`);
+                const response = await fetch(`/api/match/${matchId}/frames?team=${currentPOV}`);
                 const data = await response.json();
 
                 currentMatch = data.match_id;
@@ -529,6 +589,20 @@
 
             // Joueurs
             frame.players.forEach(player => {
+                // Filtrage selon POV
+                if (currentPOV === '100') {
+                    // POV Blue : afficher Blue + Red visibles
+                    if (player.team === 200 && !player.visible_to_enemy) {
+                        return; // Red dans fog, skip
+                    }
+                } else if (currentPOV === '200') {
+                    // POV Red : afficher Red + Blue visibles
+                    if (player.team === 100 && !player.visible_to_enemy) {
+                        return; // Blue dans fog, skip
+                    }
+                }
+                // Mode ALL : afficher tout le monde
+
                 // Calculer position avec padding pour correspondre à la zone utile de l'image
                 const padding = CANVAS_SIZE * MAP_PADDING_PERCENT;
                 const usableSize = CANVAS_SIZE * MAP_USABLE_AREA;
@@ -543,7 +617,12 @@
 
                 // Couleur selon l'équipe
                 let color = player.team === 100 ? '#4a90e2' : '#e74c3c';
-                let opacity = player.visible_to_enemy ? 1.0 : 0.3;
+
+                // Opacité : en mode ALL, transparence pour ceux dans le fog (POV Blue par défaut)
+                let opacity = 1.0;
+                if (currentPOV === 'all' && !player.visible_to_enemy) {
+                    opacity = 0.3; // Dans le fog pour l'équipe Blue
+                }
 
                 // Cercle du joueur
                 ctx.globalAlpha = opacity;
@@ -585,6 +664,49 @@
                 ctx.shadowOffsetX = 0;
                 ctx.shadowOffsetY = 0;
             });
+
+            // Dessiner les tourelles pour validation des positions
+            const drawTurrets = (turrets, color) => {
+                const padding = CANVAS_SIZE * MAP_PADDING_PERCENT;
+                const usableSize = CANVAS_SIZE * MAP_USABLE_AREA;
+                
+                turrets.forEach(turret => {
+                    const baseX = (turret.x / MAP_SIZE) * usableSize;
+                    const baseY = (turret.y / MAP_SIZE) * usableSize;
+                    
+                    const x = padding + baseX;
+                    const y = CANVAS_SIZE - padding - baseY;
+                    
+                    // Point vert pour les tourelles
+                    ctx.globalAlpha = 0.8;
+                    ctx.fillStyle = color;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 6, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Bordure blanche
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                });
+            };
+            
+            // Positions tourelles Blue (DEPUIS API RIOT)
+            const blueTurrets = [
+                {x: 981, y: 10441}, {x: 1512, y: 6699}, {x: 1169, y: 4287},
+                {x: 5846, y: 6396}, {x: 5048, y: 4812}, {x: 3651, y: 3696}, {x: 1748, y: 2270},
+                {x: 10504, y: 1029}, {x: 6919, y: 1483}, {x: 4281, y: 1253}
+            ];
+            
+            // Positions tourelles Red (DEPUIS API RIOT)
+            const redTurrets = [
+                {x: 4318, y: 13875}, {x: 7943, y: 13411}, {x: 10481, y: 13650},
+                {x: 8955, y: 8510}, {x: 9767, y: 10113}, {x: 11134, y: 11207}, {x: 12611, y: 13084},
+                {x: 13866, y: 4505}, {x: 13327, y: 8226}, {x: 13624, y: 10572}
+            ];
+            
+            drawTurrets(blueTurrets, '#00ff00'); // Vert pour Blue
+            drawTurrets(redTurrets, '#00ff00');  // Vert pour Red
 
             // Dessiner la ward sélectionnée si elle existe
             if (selectedWard) {
@@ -638,8 +760,30 @@
         function updateStats(frame) {
             const blueTeam = frame.players.filter(p => p.team === 100);
             const redTeam = frame.players.filter(p => p.team === 200);
-            const visibleEnemies = redTeam.filter(p => p.visible_to_enemy).length;
-            const hiddenEnemies = redTeam.filter(p => !p.visible_to_enemy).length;
+            
+            let visible, hidden, labelVisible, labelHidden;
+            
+            if (currentPOV === '100') {
+                // POV Blue : compter Red visibles/cachés
+                visible = redTeam.filter(p => p.visible_to_enemy).length;
+                hidden = redTeam.filter(p => !p.visible_to_enemy).length;
+                labelVisible = 'Ennemis Visibles';
+                labelHidden = 'Dans le Fog';
+            } else if (currentPOV === '200') {
+                // POV Red : compter Blue visibles/cachés
+                visible = blueTeam.filter(p => p.visible_to_enemy).length;
+                hidden = blueTeam.filter(p => !p.visible_to_enemy).length;
+                labelVisible = 'Ennemis Visibles';
+                labelHidden = 'Dans le Fog';
+            } else {
+                // Mode ALL : compter tous les joueurs visibles/fog (POV Blue)
+                const blueVisible = blueTeam.filter(p => p.visible_to_enemy).length;
+                const redVisible = redTeam.filter(p => p.visible_to_enemy).length;
+                visible = blueVisible + redVisible;
+                hidden = 10 - visible;
+                labelVisible = 'Joueurs Visibles';
+                labelHidden = 'Dans le Fog';
+            }
             
             const wards = frame.wards || {};
             const blueWards = wards.blue_ward_count || 0;
@@ -647,28 +791,20 @@
 
             statsContainer.innerHTML = `
                 <div class="stat-card">
-                    <div class="stat-value">${blueTeam.length}</div>
-                    <div class="stat-label">Équipe Bleue</div>
+                    <div class="stat-value">${visible}</div>
+                    <div class="stat-label">${labelVisible}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-value">${redTeam.length}</div>
-                    <div class="stat-label">Équipe Rouge</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">${visibleEnemies}</div>
-                    <div class="stat-label">Ennemis Visibles</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">${hiddenEnemies}</div>
-                    <div class="stat-label">Dans le Fog</div>
+                    <div class="stat-value">${hidden}</div>
+                    <div class="stat-label">${labelHidden}</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-value">${blueWards}</div>
-                    <div class="stat-label">Wards Bleues Actives</div>
+                    <div class="stat-label">Wards Bleues</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-value">${redWards}</div>
-                    <div class="stat-label">Wards Rouges Actives</div>
+                    <div class="stat-label">Wards Rouges</div>
                 </div>
             `;
 
@@ -806,6 +942,33 @@
             if (matchId) {
                 loadMatch(matchId);
             }
+        });
+
+        // Gestion des boutons POV
+        document.querySelectorAll('.pov-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const newPOV = btn.dataset.team;
+                if (newPOV === currentPOV) return;  // Déjà sélectionné
+                
+                // Mettre à jour l'état visuel
+                document.querySelectorAll('.pov-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                // Mettre à jour l'état
+                currentPOV = newPOV;
+                
+                // Recharger le match si déjà chargé
+                const matchId = matchSelect.value;
+                if (matchId && frames.length > 0) {
+                    const currentTime = currentFrameIndex;
+                    loadMatch(matchId).then(() => {
+                        // Restaurer la position dans la timeline
+                        if (currentTime < frames.length) {
+                            displayFrame(currentTime);
+                        }
+                    });
+                }
+            });
         });
 
         prevBtn.addEventListener('click', () => {

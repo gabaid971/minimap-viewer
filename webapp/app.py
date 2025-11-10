@@ -202,6 +202,9 @@ def get_match_frames(match_id):
     if df is None:
         return jsonify({'error': 'Dataset non chargé'}), 500
     
+    # Paramètre team pour POV (100=blue, 200=red, all=tous)
+    pov_team = request.args.get('team', 'all')
+    
     # Filtrer par match
     match_data = df.filter(pl.col('match_id') == match_id).sort('timestamp')
     
@@ -236,6 +239,8 @@ def get_match_frames(match_id):
         
         players = []
         for row in frame_data.iter_rows(named=True):
+            # Ne plus filtrer côté backend - envoyer tous les joueurs
+            # Le frontend gère le filtrage selon le POV
             players.append({
                 'participant_id': row['participant_id'],
                 'champion': row['champion'],

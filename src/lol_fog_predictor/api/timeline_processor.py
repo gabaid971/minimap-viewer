@@ -11,12 +11,6 @@ import polars as pl
 from dataclasses import dataclass
 
 
-# Constantes de vision League of Legends
-VISION_RADIUS = 1200  # Vision standard d'un champion
-WARD_VISION_RADIUS = 900  # Vision d'une ward
-MAP_SIZE = 14820  # Taille de la map (0-14820 sur x et y)
-
-
 @dataclass
 class Position:
     """Position sur la carte"""
@@ -26,6 +20,46 @@ class Position:
     def distance_to(self, other: 'Position') -> float:
         """Calculer distance euclidienne"""
         return math.sqrt((self.x - other.x)**2 + (self.y - other.y)**2)
+
+
+# Constantes de vision League of Legends (correctes)
+CHAMPION_VISION_RADIUS = 1350  # Champions, pets, super minions, tourelles
+WARD_VISION_RADIUS = 900  # Totem/Stealth/Control/Zombie Wards, Effigies
+MAP_SIZE = 14820  # Taille de la map (0-14820 sur x et y)
+
+# Positions fixes des tourelles (Blue team) - DEPUIS API RIOT
+BLUE_TURRET_POSITIONS = [
+    # Top lane
+    Position(981, 10441),   # Top Outer
+    Position(1512, 6699),   # Top Inner
+    Position(1169, 4287),   # Top Inhibitor
+    # Mid lane
+    Position(5846, 6396),   # Mid Outer
+    Position(5048, 4812),   # Mid Inner
+    Position(3651, 3696),   # Mid Inhibitor
+    Position(1748, 2270),   # Mid Nexus
+    # Bot lane
+    Position(10504, 1029),  # Bot Outer
+    Position(6919, 1483),   # Bot Inner
+    Position(4281, 1253),   # Bot Inhibitor
+]
+
+# Positions fixes des tourelles (Red team) - DEPUIS API RIOT
+RED_TURRET_POSITIONS = [
+    # Top lane
+    Position(4318, 13875),  # Top Outer
+    Position(7943, 13411),  # Top Inner
+    Position(10481, 13650), # Top Inhibitor
+    # Mid lane
+    Position(8955, 8510),   # Mid Outer
+    Position(9767, 10113),  # Mid Inner
+    Position(11134, 11207), # Mid Inhibitor
+    Position(12611, 13084), # Mid Nexus
+    # Bot lane
+    Position(13866, 4505),  # Bot Outer
+    Position(13327, 8226),  # Bot Inner
+    Position(13624, 10572), # Bot Inhibitor
+]
 
 
 def load_timeline(timeline_path: Path) -> Dict:
@@ -94,32 +128,37 @@ def extract_ward_positions(frame: Dict, team_id: int) -> List[Position]:
 def is_enemy_visible(
     enemy_pos: Position,
     ally_positions: List[Position],
+    ally_turrets: List[Position],
     ward_positions: List[Position] = None,
-    vision_radius: float = VISION_RADIUS
 ) -> bool:
     """
     Vérifier si un ennemi est visible par l'équipe alliée
     
     Prend en compte:
-    - Vision des champions alliés (1200 unités)
+    - Vision des champions alliés (1350 unités)
+    - Vision des tourelles alliées (1350 unités)
     - Vision des wards alliées (900 unités)
-    - TODO: Tourelles, plantes, etc.
     
     Args:
         enemy_pos: Position de l'ennemi
-        ally_positions: Positions de tous les alliés
+        ally_positions: Positions de tous les champions alliés
+        ally_turrets: Positions des tourelles alliées (fixes)
         ward_positions: Positions des wards alliées
-        vision_radius: Rayon de vision champion (1200 par défaut)
     
     Returns:
         True si l'ennemi est visible, False si dans fog
     """
-    # Vision des champions
+    # Vision des champions (1350 unités)
     for ally_pos in ally_positions:
-        if enemy_pos.distance_to(ally_pos) <= vision_radius:
+        if enemy_pos.distance_to(ally_pos) <= CHAMPION_VISION_RADIUS:
             return True
     
-    # Vision des wards
+    # Vision des tourelles (1350 unités)
+    for turret_pos in ally_turrets:
+        if enemy_pos.distance_to(turret_pos) <= CHAMPION_VISION_RADIUS:
+            return True
+    
+    # Vision des wards (900 unités)
     if ward_positions:
         for ward_pos in ward_positions:
             if enemy_pos.distance_to(ward_pos) <= WARD_VISION_RADIUS:
@@ -226,18 +265,13 @@ def process_timeline_to_dataset(
             pos = data['position']
             
             # Calculer si visible par l'équipe adverse
-            if blue_team_perspective:
-                # On s'intéresse aux ennemis ROUGES vus par BLEU
-                if team == 200:  # Ennemi rouge
-                    visible = is_enemy_visible(pos, blue_positions, blue_wards)
-                else:  # Allié bleu (toujours visible pour soi)
-                    visible = True
-            else:
-                # Perspective rouge (inverse)
-                if team == 100:  # Ennemi bleu
-                    visible = is_enemy_visible(pos, red_positions, red_wards)
-                else:  # Allié rouge
-                    visible = True
+            # visible_to_enemy = True si l'ennemi peut voir ce joueur
+            if team == 100:  # Joueur Blue
+                # Blue est-il visible par Red ?
+                visible = is_enemy_visible(pos, red_positions, RED_TURRET_POSITIONS, red_wards)
+            else:  # Joueur Red (team == 200)
+                # Red est-il visible par Blue ?
+                visible = is_enemy_visible(pos, blue_positions, BLUE_TURRET_POSITIONS, blue_wards)
             
             # Ajouter ligne au dataset
             rows.append({
